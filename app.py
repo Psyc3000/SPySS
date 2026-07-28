@@ -56,7 +56,7 @@ app_ui = ui.page_navbar(
             ui.card(ui.card_header("Variable View"), ui.output_data_frame("variable_view")),
         )
     ),
-    ui.nav_panel("Descriptives",
+    ui.nav_panel("Descriptive",
         ui.layout_sidebar(
             ui.sidebar(ui.input_selectize("desc_vars", "Variables", choices=[], multiple=True), ui.input_checkbox("include_ci", "Include 95% confidence interval", True), width=300),
             ui.card(ui.card_header("Descriptive Statistics"), ui.output_data_frame("descriptive_table"), full_screen=True),
