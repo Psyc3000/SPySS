@@ -3,3 +3,4 @@ pingouin>=0.6.1
 seaborn>=0.13
 openpyxl>=3.1
 pyreadstat>=1.2
+gradio>=5.0,<7
