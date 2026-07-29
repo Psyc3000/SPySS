@@ -1,6 +1,0 @@
-shiny
-pandas
-numpy
-scipy
-statsmodels
-matplotlib
