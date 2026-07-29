@@ -1,4 +1,5 @@
 import traceback
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,7 +13,41 @@ st.title("Student Statistics Lab")
 st.caption("pandas for descriptives • seaborn/matplotlib for plots • Pingouin for inference")
 
 # Load data
-uploaded = st.sidebar.file_uploader("Upload CSV, Excel, or SAV", type=["csv", "xlsx", "xls", "sav"])
+DATASETS = {
+    "General teaching data": (
+        "general_data.csv",
+        "Descriptives, normality, correlation, t-tests, ANOVA, ANCOVA, and regression."
+    ),
+    "Repeated-measures data": (
+        "repeated_measures_data.csv",
+        "Repeated-measures ANOVA and Friedman: score, time, participant."
+    ),
+    "Reliability data": (
+        "reliability_data.csv",
+        "Cronbach alpha: select item1 through item8."
+    ),
+    "Categorical data": (
+        "categorical_data.csv",
+        "Chi-square: treatment × outcome, adherence × outcome, or smoker × outcome."
+    ),
+    "Nonparametric data": (
+        "nonparametric_data.csv",
+        "Mann-Whitney, Kruskal-Wallis, and Wilcoxon."
+    ),
+    "Penguins (Pingouin)": (
+        None,
+        "A familiar dataset for descriptives, correlations, ANOVA, and regression."
+    ),
+}
+
+dataset_name = st.sidebar.selectbox("Built-in teaching dataset", list(DATASETS))
+filename, dataset_note = DATASETS[dataset_name]
+st.sidebar.caption(dataset_note)
+
+uploaded = st.sidebar.file_uploader(
+    "Or upload CSV, Excel, or SAV", type=["csv", "xlsx", "xls", "sav"]
+)
+
 if uploaded:
     name = uploaded.name.lower()
     if name.endswith(".csv"):
@@ -21,6 +56,8 @@ if uploaded:
         df = pd.read_excel(uploaded)
     else:
         df = pd.read_spss(uploaded)
+elif filename:
+    df = pd.read_csv(Path(__file__).with_name(filename))
 else:
     df = pg.read_dataset("penguins")
 
@@ -82,8 +119,10 @@ elif analysis.startswith("5."):
         mu = st.number_input("Test value", value=0.0)
         code = f'''result = pg.ttest(df[{x!r}].dropna(), {mu})'''
     elif design == "Paired":
-        x = st.selectbox("Variable 1", num_cols)
-        y = st.selectbox("Variable 2", num_cols, index=min(1, len(num_cols) - 1))
+        x_default = num_cols.index("pre_score") if "pre_score" in num_cols else 0
+        x = st.selectbox("Variable 1", num_cols, index=x_default)
+        y_default = num_cols.index("post_score") if "post_score" in num_cols else min(1, len(num_cols) - 1)
+        y = st.selectbox("Variable 2", num_cols, index=y_default)
         code = f'''d = df[[{x!r}, {y!r}]].dropna()
 result = pg.ttest(d[{x!r}], d[{y!r}], paired=True)'''
     else:
@@ -112,11 +151,38 @@ elif analysis.startswith("6."):
         code += f'''\nposthoc = pg.pairwise_gameshowell(data=df, dv={dv!r}, between={between!r})'''
 
 elif analysis.startswith("7."):
-    dv = st.selectbox("Dependent variable", num_cols)
-    within = st.selectbox("Within-subject factor", [c for c in all_cols if c != dv])
-    subject = st.selectbox("Subject ID", [c for c in all_cols if c not in [dv, within]])
-    code = f'''result = pg.rm_anova(data=df, dv={dv!r}, within={within!r}, subject={subject!r}, detailed=True)
-posthoc = pg.pairwise_tests(data=df, dv={dv!r}, within={within!r}, subject={subject!r}, paired=True, padjust="holm")'''
+    # Prefer plausible defaults in teaching datasets: score, time, participant.
+    dv_default = num_cols.index("score") if "score" in num_cols else 0
+    dv = st.selectbox("Dependent variable", num_cols, index=dv_default)
+
+    within_options = [c for c in all_cols if c != dv]
+    within_default = within_options.index("time") if "time" in within_options else 0
+    within = st.selectbox("Within-subject factor", within_options, index=within_default)
+
+    subject_options = [c for c in all_cols if c not in [dv, within]]
+    subject_default = subject_options.index("participant") if "participant" in subject_options else 0
+    subject = st.selectbox("Subject ID", subject_options, index=subject_default)
+
+    code = f'''d = df[[{subject!r}, {within!r}, {dv!r}]].dropna().copy()
+
+# Each subject must contribute data at two or more within-subject levels.
+levels_per_subject = d.groupby({subject!r})[{within!r}].nunique()
+valid_subjects = levels_per_subject[levels_per_subject >= 2].index
+d = d[d[{subject!r}].isin(valid_subjects)]
+
+if d.empty or d[{within!r}].nunique() < 2:
+    raise ValueError(
+        "Repeated-measures ANOVA requires each subject to have observations "
+        "at two or more levels of the within-subject factor."
+    )
+
+result = pg.rm_anova(
+    data=d, dv={dv!r}, within={within!r}, subject={subject!r}, detailed=True
+)
+posthoc = pg.pairwise_tests(
+    data=d, dv={dv!r}, within={within!r}, subject={subject!r},
+    paired=True, padjust="holm"
+)'''
 
 elif analysis.startswith("8."):
     dv = st.selectbox("Dependent variable", num_cols)
@@ -158,7 +224,11 @@ elif analysis.startswith("10."):
     code = f'''result = pg.linear_regression(X=df[{xs!r}], y=df[{y!r}], remove_na=True)'''
 
 elif analysis.startswith("11."):
-    items = st.multiselect("Scale items", num_cols, default=num_cols[:3])
+    item_defaults = [c for c in num_cols if c.lower().startswith("item")]
+    items = st.multiselect(
+        "Scale items", num_cols,
+        default=item_defaults if item_defaults else num_cols[:3]
+    )
     code = f'''alpha, ci = pg.cronbach_alpha(data=df[{items!r}])
 result = pd.DataFrame({{"Cronbach alpha": [alpha], "CI lower": [ci[0]], "CI upper": [ci[1]]}})'''
 

@@ -1,0 +1,121 @@
+participant,treatment,gender,smoker,adherence,outcome
+1,Usual care,Woman,No,Low,Not improved
+2,Program,Woman,No,High,Improved
+3,Usual care,Man,No,High,Improved
+4,Program,Woman,Yes,High,Improved
+5,Usual care,Woman,No,High,Improved
+6,Program,Man,No,Low,Improved
+7,Usual care,Woman,No,Low,Not improved
+8,Program,Woman,Yes,Low,Improved
+9,Usual care,Man,No,High,Improved
+10,Program,Woman,No,High,Improved
+11,Usual care,Woman,No,Low,Improved
+12,Program,Man,Yes,Low,Improved
+13,Usual care,Woman,No,Low,Not improved
+14,Program,Woman,No,High,Not improved
+15,Usual care,Man,No,Low,Not improved
+16,Program,Woman,Yes,High,Not improved
+17,Usual care,Woman,No,Low,Improved
+18,Program,Man,No,High,Improved
+19,Usual care,Woman,No,High,Improved
+20,Program,Woman,Yes,High,Improved
+21,Usual care,Man,No,High,Improved
+22,Program,Woman,No,High,Improved
+23,Usual care,Woman,No,High,Not improved
+24,Program,Man,Yes,Low,Improved
+25,Usual care,Woman,No,Low,Not improved
+26,Program,Woman,No,High,Improved
+27,Usual care,Man,No,Low,Improved
+28,Program,Woman,Yes,Low,Improved
+29,Usual care,Woman,No,High,Improved
+30,Program,Man,No,High,Improved
+31,Usual care,Woman,No,High,Not improved
+32,Program,Woman,Yes,High,Improved
+33,Usual care,Man,No,Low,Improved
+34,Program,Woman,No,High,Improved
+35,Usual care,Woman,No,High,Improved
+36,Program,Man,Yes,High,Improved
+37,Usual care,Woman,No,High,Improved
+38,Program,Woman,No,High,Improved
+39,Usual care,Man,No,Low,Not improved
+40,Program,Woman,Yes,High,Improved
+41,Usual care,Woman,No,Low,Improved
+42,Program,Man,No,High,Improved
+43,Usual care,Woman,No,Low,Not improved
+44,Program,Woman,Yes,High,Improved
+45,Usual care,Man,No,High,Improved
+46,Program,Woman,No,Low,Improved
+47,Usual care,Woman,No,High,Not improved
+48,Program,Man,Yes,Low,Improved
+49,Usual care,Woman,No,High,Not improved
+50,Program,Woman,No,Low,Improved
+51,Usual care,Man,No,Low,Not improved
+52,Program,Woman,Yes,High,Improved
+53,Usual care,Woman,No,Low,Improved
+54,Program,Man,No,High,Improved
+55,Usual care,Woman,No,High,Improved
+56,Program,Woman,Yes,Low,Improved
+57,Usual care,Man,No,High,Improved
+58,Program,Woman,No,High,Improved
+59,Usual care,Woman,No,High,Not improved
+60,Program,Man,Yes,Low,Not improved
+61,Usual care,Woman,No,High,Improved
+62,Program,Woman,No,Low,Improved
+63,Usual care,Man,No,High,Improved
+64,Program,Woman,Yes,Low,Not improved
+65,Usual care,Woman,No,Low,Improved
+66,Program,Man,No,High,Improved
+67,Usual care,Woman,No,Low,Improved
+68,Program,Woman,Yes,High,Improved
+69,Usual care,Man,No,Low,Improved
+70,Program,Woman,No,High,Improved
+71,Usual care,Woman,No,Low,Not improved
+72,Program,Man,Yes,Low,Improved
+73,Usual care,Woman,No,Low,Not improved
+74,Program,Woman,No,High,Improved
+75,Usual care,Man,No,High,Improved
+76,Program,Woman,Yes,Low,Not improved
+77,Usual care,Woman,No,Low,Improved
+78,Program,Man,No,High,Improved
+79,Usual care,Woman,No,Low,Not improved
+80,Program,Woman,Yes,High,Not improved
+81,Usual care,Man,No,Low,Improved
+82,Program,Woman,No,Low,Improved
+83,Usual care,Woman,No,Low,Improved
+84,Program,Man,Yes,High,Not improved
+85,Usual care,Woman,No,High,Improved
+86,Program,Woman,No,High,Improved
+87,Usual care,Man,No,High,Improved
+88,Program,Woman,Yes,High,Not improved
+89,Usual care,Woman,No,High,Improved
+90,Program,Man,No,Low,Not improved
+91,Usual care,Woman,No,Low,Not improved
+92,Program,Woman,Yes,High,Improved
+93,Usual care,Man,No,Low,Not improved
+94,Program,Woman,No,High,Improved
+95,Usual care,Woman,No,High,Improved
+96,Program,Man,Yes,High,Improved
+97,Usual care,Woman,No,Low,Not improved
+98,Program,Woman,No,High,Improved
+99,Usual care,Man,No,High,Improved
+100,Program,Woman,Yes,High,Improved
+101,Usual care,Woman,No,High,Not improved
+102,Program,Man,No,High,Improved
+103,Usual care,Woman,No,Low,Not improved
+104,Program,Woman,Yes,High,Improved
+105,Usual care,Man,No,High,Improved
+106,Program,Woman,No,High,Improved
+107,Usual care,Woman,No,High,Improved
+108,Program,Man,Yes,High,Improved
+109,Usual care,Woman,No,Low,Improved
+110,Program,Woman,No,High,Improved
+111,Usual care,Man,No,Low,Not improved
+112,Program,Woman,Yes,High,Improved
+113,Usual care,Woman,No,Low,Not improved
+114,Program,Man,No,High,Improved
+115,Usual care,Woman,No,Low,Improved
+116,Program,Woman,Yes,High,Improved
+117,Usual care,Man,No,Low,Not improved
+118,Program,Woman,No,High,Improved
+119,Usual care,Woman,No,Low,Not improved
+120,Program,Man,Yes,High,Not improved
