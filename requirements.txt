@@ -1,12 +1,5 @@
 streamlit>=1.36
 pingouin>=0.6.1
-pandas>=2.1.1
-numpy>=1.22.4
-scipy>=1.8.0
-statsmodels>=0.14.1
-matplotlib>=3.7
 seaborn>=0.13
-scikit-learn>=1.2.2
 openpyxl>=3.1
 pyreadstat>=1.2
-tabulate>=0.9
