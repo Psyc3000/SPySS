@@ -67,7 +67,7 @@ num_cols = list(df.select_dtypes(include=np.number).columns)
 st.sidebar.write(f"{len(df)} rows × {len(df.columns)} columns")
 
 if st.checkbox("Show data preview", value=True):
-    st.dataframe(df.head(50), use_container_width=True)
+    st.dataframe(df.head(50), width="stretch")
 
 analysis = st.sidebar.selectbox("Analysis", [
     "1. Descriptive statistics", "2. Normality and Q-Q plot", "3. Correlation",
@@ -249,7 +249,7 @@ if st.button("Run analysis", type="primary"):
             if name in env:
                 st.subheader(name.capitalize())
                 value = env[name]
-                st.dataframe(value, use_container_width=True) if isinstance(value, (pd.DataFrame, pd.Series)) else st.write(value)
+                st.dataframe(value, width="stretch") if isinstance(value, (pd.DataFrame, pd.Series)) else st.write(value)
         for number in plt.get_fignums():
             st.pyplot(plt.figure(number))
     except Exception:
