@@ -181,7 +181,7 @@ result = pg.rm_anova(
 )
 posthoc = pg.pairwise_tests(
     data=d, dv={dv!r}, within={within!r}, subject={subject!r},
-    paired=True, padjust="holm"
+    padjust="holm"
 )'''
 
 elif analysis.startswith("8."):
