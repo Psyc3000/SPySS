@@ -242,18 +242,19 @@ elif analysis.startswith("12."):
 st.subheader("Editable code")
 #code = st.text_area("Edit before running", code, height=210, label_visibility="collapsed")
 
-editor_key = hashlib.md5(generated_code.encode()).hexdigest()
+editor_key = hashlib.md5(code.encode()).hexdigest()
 
 code = st_ace(
-    value=generated_code,
+    value=code.strip(),
     language="python",
     theme="github",
     key=f"code_{editor_key}",
     height=300,
+    font_size=14,
+    tab_size=4,
+    wrap=True,
     auto_update=True,
 )
-
-
 if st.button("Run analysis", type="primary"):
     env = {"df": df.copy(), "pd": pd, "np": np, "pg": pg, "sns": sns, "plt": plt}
     try:
