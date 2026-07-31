@@ -7,6 +7,7 @@ import pandas as pd
 import pingouin as pg
 import seaborn as sns
 import streamlit as st
+from streamlit_ace import st_ace
 
 st.set_page_config(page_title="Student Statistics Lab", layout="wide")
 st.title("Student Statistics Lab")
@@ -238,8 +239,19 @@ elif analysis.startswith("12."):
     code = f'''expected, observed, result = pg.chi2_independence(data=df, x={x!r}, y={y!r})'''
 
 st.subheader("Editable code")
-code = st.text_area("Edit before running", code, height=210, label_visibility="collapsed")
+#code = st.text_area("Edit before running", code, height=210, label_visibility="collapsed")
 
+code = st_ace(
+    value=code.strip(),
+    language="python",
+    theme="github",
+    key=f"code_{analysis}",
+    height=300,
+    font_size=14,
+    tab_size=4,
+    wrap=True,
+    auto_update=True,
+)
 if st.button("Run analysis", type="primary"):
     env = {"df": df.copy(), "pd": pd, "np": np, "pg": pg, "sns": sns, "plt": plt}
     try:
