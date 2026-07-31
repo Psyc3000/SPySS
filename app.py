@@ -8,6 +8,8 @@ import pingouin as pg
 import seaborn as sns
 import streamlit as st
 from streamlit_ace import st_ace
+import hashlib
+import json
 
 st.set_page_config(page_title="Student Statistics Lab", layout="wide")
 st.title("Student Statistics Lab")
@@ -241,11 +243,32 @@ elif analysis.startswith("12."):
 st.subheader("Editable code")
 #code = st.text_area("Edit before running", code, height=210, label_visibility="collapsed")
 
+editor_options = {
+    "analysis": analysis,
+    "x": x,
+    "y": y,
+    "dv": dv,
+    "group": group,
+    "within": within,
+    "subject": subject,
+    "covars": covars or [],
+    "items": items or [],
+    "selected_vars": selected_vars or [],
+    "method": method,
+    "t_design": t_design,
+    "anova_type": anova_type,
+    "posthoc_type": posthoc_type,
+}
+
+options_hash = hashlib.md5(
+    json.dumps(editor_options, sort_keys=True).encode()
+).hexdigest()
+
 code = st_ace(
-    value=code.strip(),
+    value=generated_code.strip(),
     language="python",
     theme="github",
-    key=f"code_{analysis}",
+    key=f"code_editor_{options_hash}",
     height=300,
     font_size=14,
     tab_size=4,
