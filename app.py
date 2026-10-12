@@ -1,3 +1,4 @@
+import ast
 import traceback
 from pathlib import Path
 
@@ -15,6 +16,56 @@ import tempfile
 import xml.etree.ElementTree as ET
 import copy
 from bs4 import BeautifulSoup
+
+
+def _read_csv_dataframe(code, namespace):
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None
+
+    loaded = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+            value = node.value
+        else:
+            continue
+
+        if value is None or not any(
+            isinstance(child, ast.Call)
+            and (
+                isinstance(child.func, ast.Name)
+                and child.func.id == "read_csv"
+                or isinstance(child.func, ast.Attribute)
+                and child.func.attr == "read_csv"
+            )
+            for child in ast.walk(value)
+        ):
+            continue
+
+        for target in targets:
+            if isinstance(target, ast.Name):
+                dataframe = namespace.get(target.id)
+                if isinstance(dataframe, pd.DataFrame):
+                    loaded.append((node.lineno, dataframe))
+
+    return max(loaded, key=lambda item: item[0])[1] if loaded else None
+
+
+def _is_method_documentation_table(value):
+    if not isinstance(value, pd.DataFrame) or value.shape[1] != 2 or value.empty:
+        return False
+
+    members = value.iloc[:, 0].astype(str).str.strip().str.lower()
+    descriptions = value.iloc[:, 1].astype(str).str.strip()
+    member_ratio = members.str.endswith(("method", "property", "function")).mean()
+    description_ratio = descriptions.str.len().ge(20).mean()
+    return member_ratio >= 0.5 and description_ratio >= 0.5
+
 
 st.set_page_config(page_title="Student Statistics Lab", layout="wide")
 st.title("Student Statistics Lab")
@@ -56,6 +107,11 @@ uploaded = st.sidebar.file_uploader(
     "Or upload CSV, Excel, or SAV", type=["csv", "xlsx", "xls", "sav"]
 )
 
+source_identity = f"{dataset_name}:{filename or ''}:{uploaded.name if uploaded else ''}"
+if uploaded is not None:
+    source_identity += hashlib.md5(uploaded.getvalue()).hexdigest()
+data_source_key = hashlib.md5(source_identity.encode()).hexdigest()
+
 if uploaded:
     name = uploaded.name.lower()
     if name.endswith(".csv"):
@@ -69,13 +125,37 @@ elif filename:
 else:
     df = pg.read_dataset("penguins")
 
+stored_code_df = st.session_state.get("code_loaded_dataframe")
+use_code_df = (
+    st.session_state.get("code_loaded_dataframe_source") == data_source_key
+    and isinstance(stored_code_df, pd.DataFrame)
+)
+if use_code_df:
+    df = stored_code_df.copy()
+else:
+    st.session_state.pop("code_loaded_dataframe", None)
+    st.session_state.pop("code_loaded_dataframe_source", None)
+    st.session_state.pop("code_loaded_dataframe_revision", None)
+
 df.columns = [str(c).strip() for c in df.columns]
 all_cols = list(df.columns)
 num_cols = list(df.select_dtypes(include=np.number).columns)
 st.sidebar.write(f"{len(df)} rows × {len(df.columns)} columns")
 
+data_preview = None
 if st.checkbox("Show data preview", value=True):
-    st.dataframe(df.head(50), width="stretch")
+    data_preview = st.empty()
+    preview_key = (
+        f"code_dataframe_{data_source_key}_"
+        f"{st.session_state.get('code_loaded_dataframe_revision', 0)}"
+        if use_code_df else f"dataset_dataframe_{data_source_key}"
+    )
+    df = data_preview.data_editor(
+        df,
+        width="stretch",
+        num_rows="dynamic",
+        key=preview_key,
+    )
 
 analysis = st.sidebar.selectbox("Analysis", [
     "1. Descriptive statistics",
@@ -594,33 +674,121 @@ elif analysis.startswith("13."):
 if not analysis.startswith("13."):
     st.subheader("Editable code")
 
-    editor_key = hashlib.md5(code.encode()).hexdigest()
+    editor_col, file_col = st.columns([4, 2])
+    generated_code_key = hashlib.md5(code.encode()).hexdigest()
+    with file_col:
+        uploaded_code = st.file_uploader(
+            "Import Python file",
+            type=["py"],
+            key="code_file_upload",
+        )
+        import_code = st.button(
+            "Load into editor",
+            disabled=uploaded_code is None,
+            key="load_code_file",
+        )
+    if uploaded_code is not None and import_code:
+        try:
+            st.session_state["imported_code"] = uploaded_code.getvalue().decode("utf-8-sig")
+            st.session_state["imported_code_base"] = generated_code_key
+            st.session_state["code_import_revision"] = (
+                st.session_state.get("code_import_revision", 0) + 1
+            )
+        except UnicodeDecodeError:
+            with file_col:
+                st.error("The selected file must use UTF-8 encoding.")
 
-    code = st_ace(
-    value=code.strip(),
-    language="python",
-    theme="github",
-    key=f"code_{editor_key}",
-    height=300,
-    font_size=14,
-    tab_size=4,
-    wrap=True,
-    auto_update=True,)
+    if st.session_state.get("imported_code_base") == generated_code_key:
+        code = st.session_state["imported_code"]
+    else:
+        st.session_state.pop("imported_code", None)
+        st.session_state.pop("imported_code_base", None)
+
+    editor_key = hashlib.md5(
+        f"{code}\0{st.session_state.get('code_import_revision', 0)}".encode()
+    ).hexdigest()
+
+    with editor_col:
+        code = st_ace(
+            value=code.strip(),
+            language="python",
+            theme="github",
+            key=f"code_{editor_key}",
+            height=300,
+            font_size=14,
+            tab_size=4,
+            wrap=True,
+            auto_update=True,
+        )
+    with file_col:
+        st.download_button(
+            "Download .py",
+            data=code or "",
+            file_name="analysis.py",
+            mime="text/x-python",
+        )
 
 if not analysis.startswith("13."):
 
+    output_signature = hashlib.md5(
+        f"{analysis}\0{code}\0{data_source_key}".encode()
+    ).hexdigest()
+    if st.session_state.get("analysis_output_signature") != output_signature:
+        st.session_state.pop("analysis_output_values", None)
+        st.session_state.pop("analysis_output_figures", None)
+
     if st.button("Run analysis", type="primary"):
-        env = {"df": df.copy(), "pd": pd, "np": np, "pg": pg, "sns": sns, "plt": plt}
+        st.session_state.pop("analysis_output_values", None)
+        st.session_state.pop("analysis_output_figures", None)
+        st.session_state.pop("analysis_output_signature", None)
+        execution_df = df.copy()
+        env = {"df": execution_df, "pd": pd, "np": np, "pg": pg, "sns": sns, "plt": plt}
         try:
             plt.close("all")
             exec(code, env)
+            loaded_df = _read_csv_dataframe(code, env)
+            if loaded_df is None and env.get("df") is not execution_df:
+                loaded_df = env.get("df")
+            if isinstance(loaded_df, pd.DataFrame):
+                revision = st.session_state.get("code_loaded_dataframe_revision", 0) + 1
+                st.session_state["code_loaded_dataframe"] = loaded_df.copy()
+                st.session_state["code_loaded_dataframe_source"] = data_source_key
+                st.session_state["code_loaded_dataframe_revision"] = revision
+                if data_preview is not None:
+                    data_preview.data_editor(
+                        loaded_df,
+                        width="stretch",
+                        num_rows="dynamic",
+                        key=f"code_dataframe_{data_source_key}_{revision}",
+                    )
+            output_values = []
             for name in ["result", "posthoc", "observed", "expected", "overall", "anova"]:
                 if name in env:
-                    st.subheader(name.capitalize())
                     value = env[name]
-                    st.dataframe(value, width="stretch") if isinstance(value, (pd.DataFrame, pd.Series)) else st.write(value)
-            for number in plt.get_fignums():
-                st.pyplot(plt.figure(number))
+                    is_table = isinstance(value, (pd.DataFrame, pd.Series))
+                    is_scalar = pd.api.types.is_scalar(value)
+                    is_method_table = _is_method_documentation_table(value)
+                    if (is_table and not is_method_table) or is_scalar:
+                        output_values.append((name, value))
+            st.session_state["analysis_output_values"] = output_values
+            st.session_state["analysis_output_figures"] = [
+                plt.figure(number) for number in plt.get_fignums()
+            ]
+            st.session_state["analysis_output_signature"] = output_signature
         except Exception:
             st.error("Analysis failed")
             st.code(traceback.format_exc())
+
+    if st.session_state.get("analysis_output_signature") == output_signature:
+        for name, value in st.session_state.get("analysis_output_values", []):
+            is_table = isinstance(value, (pd.DataFrame, pd.Series))
+            is_scalar = pd.api.types.is_scalar(value)
+            is_method_table = _is_method_documentation_table(value)
+            if (is_table and not is_method_table) or is_scalar:
+                st.subheader(name.capitalize())
+                if is_table:
+                    st.dataframe(value, width="stretch")
+                else:
+                    st.write(value)
+        for figure in st.session_state.get("analysis_output_figures", []):
+            st.pyplot(figure)
