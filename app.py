@@ -318,9 +318,10 @@ result = pg.wilcoxon(d[{x!r}], d[{y!r}])'''
 
 elif analysis.startswith("10."):
     y = st.selectbox("Outcome", num_cols)
-    xs = st.multiselect("Predictors", [c for c in num_cols if c != y])
+    predictor_options = [c for c in num_cols if c != y]
+    xs = st.multiselect("Predictors", predictor_options, default=predictor_options[:1])
     code = f'''result = pg.linear_regression(X=df[{xs!r}], y=df[{y!r}], remove_na=True)
-    sns.regplot(x=df[{xs!r}], y=df[{y!r}])
+sns.regplot(x=df[{xs!r}], y=df[{y!r}])
     '''
 
 elif analysis.startswith("11."):
