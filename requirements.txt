@@ -1,4 +1,4 @@
-streamlit>=1.36
+streamlit>=1.37
 pingouin>=0.6.1
 seaborn>=0.13
 openpyxl>=3.1

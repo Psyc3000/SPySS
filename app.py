@@ -67,6 +67,21 @@ def _is_method_documentation_table(value):
     return member_ratio >= 0.5 and description_ratio >= 0.5
 
 
+@st.fragment
+def _render_code_editor(initial_value, editor_key):
+    st.session_state["analysis_code"] = st_ace(
+        value=initial_value,
+        language="python",
+        theme="github",
+        key=editor_key,
+        height=300,
+        font_size=14,
+        tab_size=4,
+        wrap=True,
+        auto_update=True,
+    )
+
+
 st.set_page_config(page_title="Student Statistics Lab", layout="wide")
 st.title("Student Statistics Lab")
 st.caption("pandas for descriptives • seaborn/matplotlib for plots • Pingouin and Statsmodels for inference")
@@ -678,7 +693,14 @@ if not analysis.startswith("13."):
     st.subheader("Editable code")
 
     editor_col, file_col = st.columns([4, 2])
-    generated_code_key = hashlib.md5(code.encode()).hexdigest()
+    generated_code_signature = hashlib.md5(code.encode()).hexdigest()
+    if "code_editor_initial_value" not in st.session_state:
+        st.session_state["code_editor_initial_value"] = code
+    if st.session_state.get("code_editor_generated_signature") != generated_code_signature:
+        st.session_state["code_editor_initial_value"] = code
+        st.session_state["analysis_code"] = code
+        st.session_state["code_editor_generated_signature"] = generated_code_signature
+    st.session_state.setdefault("code_editor_revision", 0)
     with file_col:
         uploaded_code = st.file_uploader(
             "Import Python file",
@@ -692,37 +714,20 @@ if not analysis.startswith("13."):
         )
     if uploaded_code is not None and import_code:
         try:
-            st.session_state["imported_code"] = uploaded_code.getvalue().decode("utf-8-sig")
-            st.session_state["imported_code_base"] = generated_code_key
-            st.session_state["code_import_revision"] = (
-                st.session_state.get("code_import_revision", 0) + 1
-            )
+            st.session_state["code_editor_initial_value"] = uploaded_code.getvalue().decode("utf-8-sig")
+            st.session_state["code_editor_revision"] += 1
         except UnicodeDecodeError:
             with file_col:
                 st.error("The selected file must use UTF-8 encoding.")
 
-    if st.session_state.get("imported_code_base") == generated_code_key:
-        code = st.session_state["imported_code"]
-    else:
-        st.session_state.pop("imported_code", None)
-        st.session_state.pop("imported_code_base", None)
-
-    editor_key = hashlib.md5(
-        f"{code}\0{st.session_state.get('code_import_revision', 0)}".encode()
-    ).hexdigest()
+    editor_key = (
+        f"analysis_code_editor_{st.session_state['code_editor_revision']}_"
+        f"{generated_code_signature}"
+    )
 
     with editor_col:
-        code = st_ace(
-            value=code.strip(),
-            language="python",
-            theme="github",
-            key=f"code_{editor_key}",
-            height=300,
-            font_size=14,
-            tab_size=4,
-            wrap=True,
-            auto_update=True,
-        )
+        _render_code_editor(st.session_state["code_editor_initial_value"], editor_key)
+        code = st.session_state.get("analysis_code", st.session_state["code_editor_initial_value"])
     with file_col:
         st.download_button(
             "Download .py",
