@@ -737,18 +737,9 @@ if not analysis.startswith("13."):
         )
 
 if not analysis.startswith("13."):
-
-    output_signature = hashlib.md5(
-        f"{analysis}\0{code}\0{data_source_key}".encode()
-    ).hexdigest()
-    if st.session_state.get("analysis_output_signature") != output_signature:
-        st.session_state.pop("analysis_output_values", None)
-        st.session_state.pop("analysis_output_figures", None)
-
     if st.button("Run analysis", type="primary"):
         st.session_state.pop("analysis_output_values", None)
         st.session_state.pop("analysis_output_figures", None)
-        st.session_state.pop("analysis_output_signature", None)
         execution_df = df.copy()
         env = {"df": execution_df, "pd": pd, "np": np, "pg": pg, "sns": sns, "plt": plt}
         try:
@@ -782,12 +773,11 @@ if not analysis.startswith("13."):
             st.session_state["analysis_output_figures"] = [
                 plt.figure(number) for number in plt.get_fignums()
             ]
-            st.session_state["analysis_output_signature"] = output_signature
         except Exception:
             st.error("Analysis failed")
             st.code(traceback.format_exc())
 
-    if st.session_state.get("analysis_output_signature") == output_signature:
+    if "analysis_output_values" in st.session_state:
         for name, value in st.session_state.get("analysis_output_values", []):
             is_table = isinstance(value, (pd.DataFrame, pd.Series))
             is_scalar = pd.api.types.is_scalar(value)
