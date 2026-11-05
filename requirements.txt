@@ -1,4 +1,7 @@
 streamlit>=1.37
+streamlit-quill>=0.0.3
+Markdown>=3.7
+markdownify>=1.2.3
 pingouin>=0.6.1
 seaborn>=0.13
 openpyxl>=3.1

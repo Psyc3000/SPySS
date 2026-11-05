@@ -16,6 +16,49 @@ import tempfile
 import xml.etree.ElementTree as ET
 import copy
 from bs4 import BeautifulSoup
+import markdown as markdown_lib
+from markdownify import MarkdownConverter
+from streamlit_quill import st_quill
+import streamlit.components.v1 as components
+
+
+class _ExamMarkdownConverter(MarkdownConverter):
+    def convert_span(self, el, text, parent_tags=None):
+        style_by_class = {
+            "ql-font-serif": "font-family: Georgia, 'Times New Roman', serif",
+            "ql-font-monospace": "font-family: Monaco, 'Courier New', monospace",
+            "ql-size-small": "font-size: 0.75em",
+            "ql-size-large": "font-size: 1.5em",
+            "ql-size-huge": "font-size: 2.5em",
+        }
+        styles = [
+            style_by_class[class_name]
+            for class_name in el.get("class", [])
+            if class_name in style_by_class
+        ]
+        if styles:
+            return f'<span style="{"; ".join(styles)}">{text}</span>'
+        return text
+
+
+def _exam_html_document(editor_html):
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam</title>
+<style>
+body {{ font-family: Arial, sans-serif; line-height: 1.5; margin: 2rem; }}
+.ql-font-serif {{ font-family: Georgia, "Times New Roman", serif; }}
+.ql-font-monospace {{ font-family: Monaco, "Courier New", monospace; }}
+.ql-size-small {{ font-size: 0.75em; }}
+.ql-size-large {{ font-size: 1.5em; }}
+.ql-size-huge {{ font-size: 2.5em; }}
+</style>
+</head>
+<body>{editor_html}</body>
+</html>"""
 
 
 def _read_csv_dataframe(code, namespace):
@@ -81,6 +124,82 @@ def _render_code_editor(initial_value, editor_key):
         auto_update=True,
     )
 
+
+@st.fragment
+def _render_exam_markdown_editor():
+    st.subheader("Exam Markdown editor")
+
+    uploaded_markdown = st.file_uploader(
+        "Upload a Markdown file",
+        type=["md", "markdown"],
+        key="exam_markdown_upload",
+    )
+    st.session_state.setdefault("exam_markdown_editor_revision", 0)
+    st.session_state.setdefault("exam_markdown_initial_value", "")
+    st.session_state.setdefault("exam_markdown_filename", "exam.md")
+
+    if uploaded_markdown is not None and st.button(
+        "Load into editor",
+        key="load_exam_markdown",
+    ):
+        markdown_bytes = uploaded_markdown.getvalue()
+        try:
+            st.session_state["exam_markdown_initial_value"] = markdown_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            st.error("The selected Markdown file must use UTF-8 encoding.")
+            return
+        st.session_state["exam_markdown_filename"] = Path(uploaded_markdown.name).name
+        st.session_state["exam_markdown_editor_revision"] += 1
+
+    editor_col, preview_col = st.columns(2)
+    editor_key = f"exam_markdown_editor_{st.session_state['exam_markdown_editor_revision']}"
+    with editor_col:
+        st.caption("Rich-text editor")
+        editor_html = st_quill(
+            value=markdown_lib.markdown(
+                st.session_state["exam_markdown_initial_value"],
+                extensions=["extra"],
+            ),
+            html=True,
+            toolbar=[
+                ["bold", "italic", "underline", "strike"],
+                [{"list": "ordered"}, {"list": "bullet"}],
+                [{"header": [1, 2, 3, False]}],
+                [{"font": []}, {"size": ["small", False, "large", "huge"]}],
+                ["link", "blockquote", "code-block"],
+                ["clean"],
+            ],
+            key=editor_key,
+        ) or ""
+        markdown = _ExamMarkdownConverter(
+            heading_style="ATX",
+            bullets="-",
+        ).convert(editor_html).strip()
+        st.session_state["exam_markdown_initial_value"] = markdown
+    with preview_col:
+        st.caption("Preview")
+        if editor_html.strip():
+            components.html(
+                _exam_html_document(editor_html),
+                height=450,
+                scrolling=True,
+            )
+        else:
+            st.info("Enter or upload Markdown to see a preview.")
+        st.download_button(
+            "Download Markdown",
+            data=markdown,
+            file_name=st.session_state["exam_markdown_filename"],
+            mime="text/markdown",
+            key="download_exam_markdown",
+        )
+    st.download_button(
+        "Download formatted HTML",
+        data=_exam_html_document(editor_html),
+        file_name=f"{Path(st.session_state['exam_markdown_filename']).stem}.html",
+        mime="text/html",
+        key="download_exam_html",
+    )
 
 st.set_page_config(page_title="Student Statistics Lab", layout="wide")
 st.title("Student Statistics Lab")
@@ -689,6 +808,7 @@ elif analysis.startswith("13."):
                 file_name="exam_versions.zip",
                 mime="application/zip"
             )
+    _render_exam_markdown_editor()
 if not analysis.startswith("13."):
     st.subheader("Editable code")
 
