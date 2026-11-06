@@ -312,7 +312,8 @@ code = ""
 
 if analysis.startswith("1."):
     vars_ = st.multiselect("Numeric variables", num_cols, default=num_cols[:4])
-    code = f'''x = df[{vars_!r}]
+    code = f'''df = pd.read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/hate-crimes/hate_crimes.csv")
+x = df[{vars_!r}]
 result = pd.DataFrame({{
     "N": x.count(), "Missing": x.isna().sum(), "Mean": x.mean(),
     "SD": x.std(), "Median": x.median(), "Minimum": x.min(),
@@ -330,13 +331,39 @@ plt.title("Q-Q plot of {x}")
 plt.show()'''
 
 elif analysis.startswith("3."):
+    show_correlation_table = st.checkbox("Show all-variable & correlation table (Read fivethirtyeight dataset from GitHub: Chapter 13's Hate-Crime)", value=False)
+    correlation_options = [
+        "median_household_income",
+        "share_unemployed_seasonal",
+        "share_population_in_metro_areas",
+        "share_population_with_high_school_degree",
+        "share_non_citizen",
+        "share_white_poverty",
+        "gini_index",
+        "share_non_white",
+        "share_voters_voted_trump",
+        "hate_crimes_per_100k_splc",
+        "avg_hatecrimes_per_100k_fbi",
+    ]
+    x_default = correlation_options.index("gini_index")
+    y_default = correlation_options.index("avg_hatecrimes_per_100k_fbi")
     c1, c2, c3 = st.columns(3)
-    x = c1.selectbox("X", num_cols)
-    y = c2.selectbox("Y", num_cols, index=min(1, len(num_cols) - 1))
-    method = c3.selectbox("Method", ["pearson", "spearman", "kendall", "bicor"])
-    code = f'''result = pg.corr(x=df[{x!r}], y=df[{y!r}], method={method!r})
-sns.regplot(data=df, x={x!r}, y={y!r})
-plt.show()'''
+    x = c1.selectbox("X", correlation_options, index=x_default, key="correlation_x")
+    y = c2.selectbox("Y", correlation_options, index=y_default, key="correlation_y")
+    method = c3.selectbox(
+        "Method",
+        ["pearson", "spearman", "kendall", "bicor"],
+        index=0,
+        key="correlation_method",
+    )
+    correlation_x, correlation_y, correlation_method = x, y, method
+    code = f'''df = pd.read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/hate-crimes/hate_crimes.csv")
+result = pg.corr(x=df[{correlation_x!r}], y=df[{correlation_y!r}], method={correlation_method!r})
+'''
+    if show_correlation_table:
+        code += '''correlation_table = df.select_dtypes(include=np.number).corr(method="pearson")
+'''
+    code += f'''sns.regplot(data=df, x={correlation_x!r}, y={correlation_y!r})'''
 
 elif analysis.startswith("4."):
     x = st.selectbox("X", num_cols)
@@ -862,6 +889,7 @@ if not analysis.startswith("13."):
         st.session_state.pop("analysis_output_figures", None)
         execution_df = df.copy()
         env = {"df": execution_df, "pd": pd, "np": np, "pg": pg, "sns": sns, "plt": plt}
+        input_values = env.copy()
         try:
             plt.close("all")
             exec(code, env)
@@ -881,14 +909,17 @@ if not analysis.startswith("13."):
                         key=f"code_dataframe_{data_source_key}_{revision}",
                     )
             output_values = []
-            for name in ["result", "posthoc", "observed", "expected", "overall", "anova"]:
-                if name in env:
-                    value = env[name]
-                    is_table = isinstance(value, (pd.DataFrame, pd.Series))
-                    is_scalar = pd.api.types.is_scalar(value)
-                    is_method_table = _is_method_documentation_table(value)
-                    if (is_table and not is_method_table) or is_scalar:
-                        output_values.append((name, value))
+            for name, value in env.items():
+                if name == "df" or name.startswith("_") or (
+                    name in input_values and value is input_values[name]
+                ):
+                    continue
+                is_table = isinstance(value, (pd.DataFrame, pd.Series))
+                is_scalar = pd.api.types.is_scalar(value)
+                is_container = isinstance(value, (dict, list, tuple, np.ndarray))
+                is_method_table = _is_method_documentation_table(value)
+                if (is_table and not is_method_table) or is_scalar or is_container:
+                    output_values.append((name, value))
             st.session_state["analysis_output_values"] = output_values
             st.session_state["analysis_output_figures"] = [
                 plt.figure(number) for number in plt.get_fignums()
@@ -901,12 +932,10 @@ if not analysis.startswith("13."):
         for name, value in st.session_state.get("analysis_output_values", []):
             is_table = isinstance(value, (pd.DataFrame, pd.Series))
             is_scalar = pd.api.types.is_scalar(value)
-            is_method_table = _is_method_documentation_table(value)
-            if (is_table and not is_method_table) or is_scalar:
-                st.subheader(name.capitalize())
-                if is_table:
-                    st.dataframe(value, width="stretch")
-                else:
-                    st.write(value)
+            st.subheader(name.replace("_", " ").capitalize())
+            if is_table:
+                st.dataframe(value, width="stretch")
+            else:
+                st.write(value)
         for figure in st.session_state.get("analysis_output_figures", []):
             st.pyplot(figure)
