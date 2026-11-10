@@ -312,7 +312,7 @@ code = ""
 
 if analysis.startswith("1."):
     vars_ = st.multiselect("Numeric variables", num_cols, default=num_cols[:4])
-    code = f'''df = pd.read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/hate-crimes/hate_crimes.csv")
+    code = f'''#df = pd.read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/hate-crimes/hate_crimes.csv")
 x = df[{vars_!r}]
 result = pd.DataFrame({{
     "N": x.count(), "Missing": x.isna().sum(), "Mean": x.mean(),
