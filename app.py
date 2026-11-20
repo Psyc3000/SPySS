@@ -1,4 +1,6 @@
 import ast
+import os
+import sqlite3
 import traceback
 from pathlib import Path
 
@@ -22,11 +24,23 @@ from streamlit_quill import st_quill
 import streamlit.components.v1 as components
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from dataset_storage import (
+    load_shared_dataset,
+    load_shared_python_files,
+    save_shared_dataset,
+    save_shared_python_file,
+)
 
 
 APP_DIR = Path(__file__).parent
 DATA_UPLOAD_DIR = APP_DIR / "Uploads" / "Datasets"
 CODE_UPLOAD_DIR = APP_DIR / "Uploads" / "Codes"
+SQLITE_DB_PATH = Path(
+    os.environ.get(
+        "SPYSS_SQLITE_PATH",
+        DATA_UPLOAD_DIR / "shared_dataset.sqlite3",
+    )
+)
 DATA_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 CODE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -258,22 +272,61 @@ DATASETS = {
     ),
 }
 
-dataset_name = st.sidebar.selectbox("Built-in teaching dataset", list(DATASETS))
+try:
+    shared_df, shared_saved_at = load_shared_dataset(SQLITE_DB_PATH)
+    shared_python_files = load_shared_python_files(SQLITE_DB_PATH)
+except (sqlite3.Error, OSError, ValueError) as error:
+    st.sidebar.error(f"Could not load the shared SQLite dataset: {error}")
+    st.stop()
+
+if st.session_state.pop("activate_shared_dataset", False):
+    st.session_state["use_shared_dataset"] = True
+
+if "use_shared_dataset" not in st.session_state:
+    st.session_state["use_shared_dataset"] = shared_df is not None
+
+if st.session_state.pop("shared_dataset_saved", False):
+    st.sidebar.success("Shared dataset saved.")
+
+use_shared_dataset = st.sidebar.checkbox(
+    "Use shared SQLite dataset",
+    disabled=shared_df is None,
+    key="use_shared_dataset",
+)
+if shared_df is None:
+    st.sidebar.caption("Save a dataset below to make it available to everyone.")
+elif shared_saved_at:
+    st.sidebar.caption(f"Shared dataset last saved: {shared_saved_at}")
+
+dataset_name = st.sidebar.selectbox(
+    "Built-in teaching dataset",
+    list(DATASETS),
+    disabled=use_shared_dataset,
+)
 filename, dataset_note = DATASETS[dataset_name]
-st.sidebar.caption(dataset_note)
+if not use_shared_dataset:
+    st.sidebar.caption(dataset_note)
 
 uploaded = st.sidebar.file_uploader(
-    "Or upload CSV, Excel, or SAV", type=["csv", "xlsx", "xls", "sav"]
+    "Or upload CSV, Excel, or SAV",
+    type=["csv", "xlsx", "xls", "sav"],
+    disabled=use_shared_dataset,
 )
 if uploaded is not None:
     _uploaded_file_path(uploaded, DATA_UPLOAD_DIR)
 
-source_identity = f"{dataset_name}:{filename or ''}:{uploaded.name if uploaded else ''}"
-if uploaded is not None:
+source_identity = (
+    f"shared:{shared_saved_at or 'unknown'}"
+    if use_shared_dataset
+    else f"{dataset_name}:{filename or ''}:{uploaded.name if uploaded else ''}"
+)
+if uploaded is not None and not use_shared_dataset:
     source_identity += hashlib.md5(uploaded.getvalue()).hexdigest()
 data_source_key = hashlib.md5(source_identity.encode()).hexdigest()
 
-if uploaded:
+if use_shared_dataset:
+    df = shared_df.copy()
+elif uploaded:
     name = uploaded.name.lower()
     if name.endswith(".csv"):
         df = pd.read_csv(uploaded)
@@ -317,6 +370,20 @@ if st.checkbox("Show data preview", value=True):
         num_rows="dynamic",
         key=preview_key,
     )
+
+st.sidebar.warning(
+    "Saving replaces the shared dataset for all users. "
+    "Use this only when that is intended."
+)
+if st.sidebar.button("Save current data as shared SQLite dataset"):
+    try:
+        save_shared_dataset(df, SQLITE_DB_PATH)
+    except (sqlite3.Error, OSError, TypeError, ValueError) as error:
+        st.sidebar.error(f"Could not save the shared SQLite dataset: {error}")
+    else:
+        st.session_state["activate_shared_dataset"] = True
+        st.session_state["shared_dataset_saved"] = True
+        st.rerun()
 
 data_csv = df.to_csv(index=False).encode("utf-8")
 st.sidebar.download_button(
@@ -879,6 +946,17 @@ if not analysis.startswith("13."):
     st.subheader("Editable code")
 
     editor_col, file_col = st.columns([4, 2])
+    if st.session_state.pop("activate_shared_python_files", False):
+        st.session_state["use_shared_python_files"] = True
+    if "use_shared_python_files" not in st.session_state:
+        st.session_state["use_shared_python_files"] = bool(shared_python_files)
+    saved_shared_python_filename = st.session_state.pop(
+        "shared_python_file_saved",
+        None,
+    )
+    if saved_shared_python_filename:
+        st.success(f"Saved {saved_shared_python_filename} to shared Python files.")
+
     generated_code_signature = hashlib.md5(code.encode()).hexdigest()
     if "code_editor_initial_value" not in st.session_state:
         st.session_state["code_editor_initial_value"] = code
@@ -893,34 +971,54 @@ if not analysis.startswith("13."):
         st.session_state["code_editor_generated_signature"] = generated_code_signature
     st.session_state.setdefault("code_editor_revision", 0)
     with file_col:
-        saved_code_files = sorted(
-            (
-                path
-                for path in CODE_UPLOAD_DIR.iterdir()
-                if path.is_file() and path.suffix.lower() == ".py"
-            ),
-            key=lambda path: path.name.casefold(),
+        use_shared_python_files = st.checkbox(
+            "Use shared Python files",
+            disabled=not bool(shared_python_files),
+            key="use_shared_python_files",
         )
-        saved_code_options = ["Select a saved file..."] + [
-            path.name for path in saved_code_files
-        ]
+        if use_shared_python_files:
+            saved_code_files = sorted(
+                shared_python_files,
+                key=str.casefold,
+            )
+            file_placeholder = "Select a shared file..."
+            file_selection_key = "shared_code_file_selection"
+            load_file_button_key = "load_shared_code_file"
+        else:
+            saved_code_files = sorted(
+                (
+                    path.name
+                    for path in CODE_UPLOAD_DIR.iterdir()
+                    if path.is_file() and path.suffix.lower() == ".py"
+                ),
+                key=str.casefold,
+            )
+            file_placeholder = "Select a saved file..."
+            file_selection_key = "saved_code_file_selection"
+            load_file_button_key = "load_saved_code_file"
+
+        saved_code_options = [file_placeholder] + saved_code_files
         selected_code_file = st.selectbox(
             "Saved Python files",
             saved_code_options,
-            key="saved_code_file_selection",
+            key=file_selection_key,
         )
         load_saved_code = st.button(
             "Load selected file",
-            disabled=selected_code_file == "Select a saved file...",
-            key="load_saved_code_file",
+            disabled=selected_code_file == file_placeholder,
+            key=load_file_button_key,
         )
         if load_saved_code:
-            saved_code_path = CODE_UPLOAD_DIR / selected_code_file
-            try:
-                saved_code = saved_code_path.read_bytes().decode("utf-8-sig")
-            except UnicodeDecodeError:
-                st.error(f"{selected_code_file} must use UTF-8 encoding.")
+            if use_shared_python_files:
+                saved_code = shared_python_files[selected_code_file]
             else:
+                saved_code_path = CODE_UPLOAD_DIR / selected_code_file
+                try:
+                    saved_code = saved_code_path.read_bytes().decode("utf-8-sig")
+                except UnicodeDecodeError:
+                    st.error(f"{selected_code_file} must use UTF-8 encoding.")
+                    saved_code = None
+            if saved_code is not None:
                 st.session_state["code_editor_initial_value"] = saved_code
                 st.session_state["analysis_code"] = saved_code
                 st.session_state["code_editor_revision"] += 1
@@ -936,6 +1034,27 @@ if not analysis.startswith("13."):
             "Load into editor",
             disabled=uploaded_code is None,
             key="load_code_file",
+        )
+        shared_filename_default = (
+            selected_code_file
+            if selected_code_file != file_placeholder
+            else "analysis.py"
+        )
+        shared_filename_key = (
+            f"shared_python_filename_{'shared' if use_shared_python_files else 'local'}_"
+            f"{selected_code_file if selected_code_file != file_placeholder else 'new'}"
+        )
+        shared_filename = st.text_input(
+            "Shared filename",
+            value=shared_filename_default,
+            key=shared_filename_key,
+        )
+        st.caption(
+            "Shared files are visible to all users; saving an existing name replaces it."
+        )
+        save_shared_code = st.button(
+            "Save current code to shared SQL",
+            key="save_shared_python_file",
         )
     if uploaded_code is not None and import_code:
         try:
@@ -959,6 +1078,20 @@ if not analysis.startswith("13."):
         if code is None:
             code = st.session_state["code_editor_initial_value"]
             st.session_state["analysis_code"] = code
+    if save_shared_code:
+        try:
+            saved_filename = save_shared_python_file(
+                shared_filename,
+                code or "",
+                SQLITE_DB_PATH,
+            )
+        except (sqlite3.Error, OSError, TypeError, ValueError) as error:
+            with file_col:
+                st.error(f"Could not save the shared Python file: {error}")
+        else:
+            st.session_state["activate_shared_python_files"] = True
+            st.session_state["shared_python_file_saved"] = saved_filename
+            st.rerun()
     with file_col:
         st.download_button(
             "Download .py",
